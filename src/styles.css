@@ -881,3 +881,94 @@ body {
 .user-action:hover { background: var(--gray-light); }
 .user-action.danger { color: var(--red); }
 .user-action.danger:hover { background: var(--red-light); }
+
+/* ── Drag & Drop ─────────────────────────────────────── */
+.drag-row { transition: background var(--transition); }
+.drag-row.drag-over { background: var(--blue-light) !important; outline: 2px dashed var(--blue); outline-offset: -2px; }
+.drag-handle {
+  cursor: grab;
+  color: var(--text-muted);
+  font-size: 14px;
+  padding: 0 6px;
+  user-select: none;
+  opacity: 0.4;
+  transition: opacity var(--transition);
+}
+.drag-row:hover .drag-handle { opacity: 1; }
+.drag-handle:active { cursor: grabbing; }
+
+/* ── Icon picker ─────────────────────────────────────── */
+.icon-btn-trigger {
+  font-size: 20px;
+  width: 40px;
+  height: 38px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--white);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+.icon-btn-trigger:hover { border-color: var(--blue); box-shadow: 0 0 0 3px var(--blue-light); }
+
+.icon-picker-wrap { position: relative; }
+.icon-picker-popup {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 300;
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  padding: 10px;
+  width: 260px;
+}
+.icon-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 2px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+.icon-option {
+  font-size: 18px;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background var(--transition);
+}
+.icon-option:hover { background: var(--gray-light); }
+.icon-option.selected { background: var(--blue-light); outline: 2px solid var(--blue); }
+
+/* ── Row action buttons ──────────────────────────────── */
+.row-actions {
+  display: flex;
+  gap: 2px;
+  justify-content: flex-end;
+  opacity: 0;
+  transition: opacity var(--transition);
+}
+.drag-row:hover .row-actions,
+tr:hover .row-actions { opacity: 1; }
+.row-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 3px 7px;
+  border-radius: 5px;
+  color: var(--text-muted);
+  font-family: var(--font);
+  transition: background var(--transition), color var(--transition);
+}
+.row-btn:hover       { background: var(--gray-light); color: var(--text-primary); }
+.row-btn.danger:hover{ background: var(--red-light);  color: var(--red); }

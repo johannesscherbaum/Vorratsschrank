@@ -1,13 +1,51 @@
-import React, { useState, useEffect, useRef } from 'react'
-import { locationStore, foodStore, unitStore, userStore, CATEGORIES, USER_ROLES } from '../lib/adminDb.js'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
+import {
+  locationStore, foodStore, unitStore, userStore,
+  CATEGORIES, USER_ROLES, LOCATION_ICONS, FOOD_ICONS,
+} from '../lib/adminDb.js'
 
+/* ── Helpers ─────────────────────────────────────────── */
 function useStore(store) {
   const [rows, setRows] = useState(() => store.getAll())
   useEffect(() => store.subscribe(() => setRows(store.getAll())), [])
-  return rows
+  return [...rows].sort((a, b) => (a.sort || 0) - (b.sort || 0))
 }
 
-function EditCell({ value, onSave, type='text', options, mono=false }) {
+function Lbl({ children }) {
+  return <label className="form-label" style={{ marginBottom: 4 }}>{children}</label>
+}
+
+/* ── Icon Picker ─────────────────────────────────────── */
+function IconPicker({ value, onChange, icons }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef()
+  useEffect(() => {
+    if (!open) return
+    const h = e => { if (!ref.current?.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [open])
+  return (
+    <div className="icon-picker-wrap" ref={ref}>
+      <button type="button" className="icon-btn-trigger" onClick={() => setOpen(o => !o)} title="Icon wählen">
+        {value || '❓'}
+      </button>
+      {open && (
+        <div className="icon-picker-popup">
+          <div className="icon-picker-grid">
+            {icons.map(ic => (
+              <button key={ic} type="button" className={`icon-option${value === ic ? ' selected' : ''}`}
+                onClick={() => { onChange(ic); setOpen(false) }}>{ic}</button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ── Inline editable cell ────────────────────────────── */
+function EditCell({ value, onSave, type = 'text', options, mono = false, placeholder = '' }) {
   const [editing, setEditing] = useState(false)
   const [val, setVal]         = useState(value)
   const ref = useRef()
@@ -15,28 +53,29 @@ function EditCell({ value, onSave, type='text', options, mono=false }) {
   useEffect(() => { setVal(value) }, [value])
   const commit = () => { onSave(val); setEditing(false) }
   const cancel = () => { setVal(value); setEditing(false) }
-
   if (!editing) return (
     <span className={value ? 'edit-cell-view' : 'edit-cell-empty'}
       style={{ fontFamily: mono ? 'monospace' : 'inherit', fontSize: mono ? 12 : 13 }}
       onClick={() => setEditing(true)} title="Klicken zum Bearbeiten">
-      {value || '–'}
+      {value || (placeholder || '–')}
     </span>
   )
   if (type === 'select') return (
     <select ref={ref} value={val} className="edit-cell-select"
       onChange={e => setVal(e.target.value)} onBlur={commit}>
+      <option value="">–</option>
       {options.map(o => <option key={o}>{o}</option>)}
     </select>
   )
   return (
-    <input ref={ref} value={val} className="edit-cell-input"
+    <input ref={ref} value={val} className="edit-cell-input" placeholder={placeholder}
       onChange={e => setVal(e.target.value)}
-      onKeyDown={e => { if(e.key==='Enter')commit(); if(e.key==='Escape')cancel() }}
+      onKeyDown={e => { if (e.key==='Enter')commit(); if (e.key==='Escape')cancel() }}
       onBlur={commit} />
   )
 }
 
+/* ── Add Panel ───────────────────────────────────────── */
 function AddPanel({ title, children, onSave, onCancel }) {
   return (
     <div className="add-panel">
@@ -50,38 +89,37 @@ function AddPanel({ title, children, onSave, onCancel }) {
   )
 }
 
-function DataTable({ cols, children, empty }) {
-  return (
-    <div className="data-table-wrap">
-      <table className="data-table">
-        <thead>
-          <tr>{cols.map((c,i) => <th key={i} style={c.w?{width:c.w}:{}}>{c.label}</th>)}</tr>
-        </thead>
-        <tbody>
-          {children}
-          {empty && <tr><td colSpan={cols.length} style={{textAlign:'center',padding:'40px',color:'var(--text-muted)'}}>{empty}</td></tr>}
-        </tbody>
-      </table>
-    </div>
-  )
+/* ── Drag reorder ────────────────────────────────────── */
+function useDrag(rows, store) {
+  const [dragId, setDragId] = useState(null)
+  const [overId, setOverId] = useState(null)
+  const onDragStart = useCallback(id => setDragId(id), [])
+  const onDragOver  = useCallback((e, id) => { e.preventDefault(); setOverId(id) }, [])
+  const onDrop      = useCallback(() => {
+    if (dragId == null || overId == null || dragId === overId) { setDragId(null); setOverId(null); return }
+    const ids = rows.map(r => r.id)
+    const from = ids.indexOf(dragId), to = ids.indexOf(overId)
+    const r = [...ids]; r.splice(from, 1); r.splice(to, 0, dragId)
+    store.reorder(r); setDragId(null); setOverId(null)
+  }, [dragId, overId, rows, store])
+  const onDragEnd = useCallback(() => { setDragId(null); setOverId(null) }, [])
+  return { overId, onDragStart, onDragOver, onDrop, onDragEnd }
 }
 
-function Lbl({ children }) {
-  return <label className="form-label" style={{ marginBottom:4 }}>{children}</label>
-}
-
-/* ── Tabs ─────────────────────────────────────────────── */
-
+/* ══════════════════════════════════════════════════════
+   LAGERORTE
+══════════════════════════════════════════════════════ */
 function LocationsTab() {
   const rows = useStore(locationStore)
-  const [q, setQ]           = useState('')
+  const [q, setQ] = useState('')
   const [adding, setAdding] = useState(false)
-  const [form, setForm]     = useState({ name:'', icon:'', note:'' })
+  const [form, setForm] = useState({ name:'', icon:'📦', note:'' })
+  const drag = useDrag(rows, locationStore)
   const filtered = rows.filter(r => r.name.toLowerCase().includes(q.toLowerCase()))
   const add = () => {
     if (!form.name.trim()) return
     locationStore.add({ name:form.name.trim(), icon:form.icon||'📦', note:form.note })
-    setForm({ name:'', icon:'', note:'' }); setAdding(false)
+    setForm({ name:'', icon:'📦', note:'' }); setAdding(false)
   }
   return (
     <div>
@@ -94,41 +132,65 @@ function LocationsTab() {
       </div>
       {adding && (
         <AddPanel title="Neuen Lagerort anlegen" onCancel={() => setAdding(false)} onSave={add}>
-          <div className="add-panel-grid" style={{ gridTemplateColumns:'56px 1fr 2fr' }}>
-            {[{l:'Icon',f:'icon',p:'📦'},{l:'Name *',f:'name',p:'Speisekeller'},{l:'Notiz',f:'note',p:'Optional'}].map(({l,f,p}) => (
-              <div key={f}><Lbl>{l}</Lbl>
-                <input className="form-input" value={form[f]} placeholder={p}
-                  onChange={e => setForm(x=>({...x,[f]:e.target.value}))}
-                  onKeyDown={e => e.key==='Enter' && add()} />
-              </div>
-            ))}
+          <div style={{ display:'grid', gridTemplateColumns:'44px 1fr 2fr', gap:10 }}>
+            <div><Lbl>Icon</Lbl>
+              <IconPicker value={form.icon} icons={LOCATION_ICONS} onChange={ic => setForm(f=>({...f,icon:ic}))} />
+            </div>
+            <div><Lbl>Name *</Lbl>
+              <input className="form-input" value={form.name} placeholder="z.B. Speisekeller"
+                onChange={e => setForm(f=>({...f,name:e.target.value}))}
+                onKeyDown={e => e.key==='Enter'&&add()} />
+            </div>
+            <div><Lbl>Notiz</Lbl>
+              <input className="form-input" value={form.note} placeholder="Optional"
+                onChange={e => setForm(f=>({...f,note:e.target.value}))} />
+            </div>
           </div>
         </AddPanel>
       )}
-      <DataTable cols={[{label:'',w:44},{label:'Name'},{label:'Notiz'},{label:'',w:44}]}
-        empty={filtered.length===0 ? 'Keine Lagerorte.' : null}>
-        {filtered.map(r => (
-          <tr key={r.id}>
-            <td><EditCell value={r.icon} onSave={v => locationStore.update(r.id,{icon:v})} /></td>
-            <td><EditCell value={r.name} onSave={v => v.trim()&&locationStore.update(r.id,{name:v.trim()})} /></td>
-            <td className="td-muted"><EditCell value={r.note||''} onSave={v => locationStore.update(r.id,{note:v})} /></td>
-            <td style={{textAlign:'right'}}>
-              <button className="btn-danger-ghost btn" onClick={() => window.confirm(`„${r.name}" löschen?`)&&locationStore.remove(r.id)}>✕</button>
-            </td>
-          </tr>
-        ))}
-      </DataTable>
-      <p className="hint">{rows.length} Lagerort{rows.length!==1?'e':''} · Felder direkt klickbar</p>
+      <div className="data-table-wrap">
+        <table className="data-table">
+          <thead><tr>
+            <th style={{width:32}}></th>
+            <th style={{width:52}}>Icon</th>
+            <th>Name</th>
+            <th>Notiz</th>
+            <th style={{width:110}}></th>
+          </tr></thead>
+          <tbody>
+            {filtered.length===0 && <tr><td colSpan={5} style={{textAlign:'center',padding:40,color:'var(--text-muted)'}}>Keine Lagerorte.</td></tr>}
+            {filtered.map(r => (
+              <tr key={r.id} className={`drag-row${drag.overId===r.id?' drag-over':''}`}
+                draggable onDragStart={()=>drag.onDragStart(r.id)}
+                onDragOver={e=>drag.onDragOver(e,r.id)} onDrop={drag.onDrop} onDragEnd={drag.onDragEnd}>
+                <td><span className="drag-handle">⠿</span></td>
+                <td><IconPicker value={r.icon} icons={LOCATION_ICONS} onChange={ic=>locationStore.update(r.id,{icon:ic})} /></td>
+                <td><EditCell value={r.name} onSave={v=>v.trim()&&locationStore.update(r.id,{name:v.trim()})} /></td>
+                <td className="td-muted"><EditCell value={r.note||''} placeholder="Notiz…" onSave={v=>locationStore.update(r.id,{note:v})} /></td>
+                <td><div className="row-actions">
+                  <button className="row-btn" title="Duplizieren" onClick={()=>locationStore.duplicate(r.id)}>⧉</button>
+                  <button className="row-btn danger" onClick={()=>window.confirm(`„${r.name}" löschen?`)&&locationStore.remove(r.id)}>✕</button>
+                </div></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="hint">{rows.length} Lagerort{rows.length!==1?'e':''} · ⠿ ziehen zum Sortieren · Icon klicken zum Ändern · ⧉ = Duplizieren</p>
     </div>
   )
 }
 
+/* ══════════════════════════════════════════════════════
+   LEBENSMITTEL
+══════════════════════════════════════════════════════ */
 function FoodsTab({ units }) {
   const rows = useStore(foodStore)
-  const [q, setQ]           = useState('')
-  const [catF, setCatF]     = useState('')
+  const [q, setQ] = useState('')
+  const [catF, setCatF] = useState('')
   const [adding, setAdding] = useState(false)
-  const [form, setForm]     = useState({ name:'', category:CATEGORIES[0], default_unit:'Stück', note:'' })
+  const [form, setForm] = useState({ name:'', icon:'📦', category:CATEGORIES[0], default_unit:'', note:'' })
+  const drag = useDrag(rows, foodStore)
   const uNames = units.map(u => u.name)
   const filtered = rows.filter(r => r.name.toLowerCase().includes(q.toLowerCase()) && (!catF||r.category===catF))
   const byCat = {}
@@ -136,7 +198,7 @@ function FoodsTab({ units }) {
   const add = () => {
     if (!form.name.trim()) return
     foodStore.add({...form, name:form.name.trim()})
-    setForm({ name:'', category:CATEGORIES[0], default_unit:'Stück', note:'' }); setAdding(false)
+    setForm({ name:'', icon:'📦', category:CATEGORIES[0], default_unit:'', note:'' }); setAdding(false)
   }
   return (
     <div>
@@ -153,54 +215,84 @@ function FoodsTab({ units }) {
       </div>
       {adding && (
         <AddPanel title="Neues Lebensmittel" onCancel={() => setAdding(false)} onSave={add}>
-          <div className="add-panel-grid" style={{ gridTemplateColumns:'2fr 2fr 1fr 2fr' }}>
-            {[{l:'Name *',f:'name',t:'text',p:'z.B. Mozzarella'},
-              {l:'Kategorie',f:'category',t:'sel',opts:CATEGORIES},
-              {l:'Einheit',f:'default_unit',t:'sel',opts:uNames},
-              {l:'Notiz',f:'note',t:'text',p:'Optional'}].map(({l,f,t,p,opts}) => (
-              <div key={f}><Lbl>{l}</Lbl>
-                {t==='sel'
-                  ? <select className="form-select" value={form[f]} onChange={e => setForm(x=>({...x,[f]:e.target.value}))}>
-                      {opts.map(o=><option key={o}>{o}</option>)}</select>
-                  : <input className="form-input" value={form[f]} placeholder={p}
-                      onChange={e => setForm(x=>({...x,[f]:e.target.value}))}
-                      onKeyDown={e => e.key==='Enter'&&add()} />
-                }
-              </div>
-            ))}
+          <div style={{ display:'grid', gridTemplateColumns:'44px 2fr 2fr 1fr 2fr', gap:10, alignItems:'end' }}>
+            <div><Lbl>Icon</Lbl>
+              <IconPicker value={form.icon} icons={FOOD_ICONS} onChange={ic => setForm(f=>({...f,icon:ic}))} />
+            </div>
+            <div><Lbl>Name *</Lbl>
+              <input className="form-input" value={form.name} placeholder="z.B. Steak"
+                onChange={e => setForm(f=>({...f,name:e.target.value}))}
+                onKeyDown={e => e.key==='Enter'&&add()} />
+            </div>
+            <div><Lbl>Kategorie</Lbl>
+              <select className="form-select" value={form.category} onChange={e => setForm(f=>({...f,category:e.target.value}))}>
+                {CATEGORIES.map(c => <option key={c}>{c}</option>)}
+              </select>
+            </div>
+            <div><Lbl>Std.-Einheit</Lbl>
+              <select className="form-select" value={form.default_unit} onChange={e => setForm(f=>({...f,default_unit:e.target.value}))}>
+                <option value="">–</option>
+                {uNames.map(u => <option key={u}>{u}</option>)}
+              </select>
+            </div>
+            <div><Lbl>Notiz</Lbl>
+              <input className="form-input" value={form.note} placeholder="Optional"
+                onChange={e => setForm(f=>({...f,note:e.target.value}))} />
+            </div>
           </div>
         </AddPanel>
       )}
-      {filtered.length===0 && <p style={{textAlign:'center',padding:'40px',color:'var(--text-muted)'}}>Keine Lebensmittel.</p>}
+      {filtered.length===0 && <p style={{textAlign:'center',padding:40,color:'var(--text-muted)'}}>Keine Lebensmittel.</p>}
       {Object.entries(byCat).map(([cat, items]) => (
         <div key={cat} style={{ marginBottom:20 }}>
-          <div style={{ display:'flex',alignItems:'center',gap:8,padding:'4px 0 8px' }}>
-            <span style={{ fontSize:11,fontWeight:700,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'.06em' }}>{cat}</span>
-            <span style={{ fontSize:11,color:'var(--text-muted)',background:'var(--gray-light)',borderRadius:999,padding:'1px 8px' }}>{items.length}</span>
+          <div style={{ display:'flex', alignItems:'center', gap:8, padding:'4px 0 8px' }}>
+            <span style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'.06em' }}>{cat}</span>
+            <span style={{ fontSize:11, color:'var(--text-muted)', background:'var(--gray-light)', borderRadius:999, padding:'1px 8px' }}>{items.length}</span>
           </div>
-          <DataTable cols={[{label:'Name'},{label:'Einheit',w:130},{label:'Notiz'},{label:'',w:44}]}>
-            {items.map(r => (
-              <tr key={r.id}>
-                <td><EditCell value={r.name} onSave={v => v.trim()&&foodStore.update(r.id,{name:v.trim()})} /></td>
-                <td><EditCell value={r.default_unit} type="select" options={uNames} onSave={v => foodStore.update(r.id,{default_unit:v})} /></td>
-                <td className="td-muted"><EditCell value={r.note||''} onSave={v => foodStore.update(r.id,{note:v})} /></td>
-                <td style={{textAlign:'right'}}>
-                  <button className="btn-danger-ghost btn" onClick={() => window.confirm(`„${r.name}" löschen?`)&&foodStore.remove(r.id)}>✕</button>
-                </td>
-              </tr>
-            ))}
-          </DataTable>
+          <div className="data-table-wrap">
+            <table className="data-table">
+              <thead><tr>
+                <th style={{width:32}}></th>
+                <th style={{width:48}}>Icon</th>
+                <th>Name</th>
+                <th style={{width:120}}>Std.-Einheit</th>
+                <th>Notiz</th>
+                <th style={{width:110}}></th>
+              </tr></thead>
+              <tbody>
+                {items.map(r => (
+                  <tr key={r.id} className={`drag-row${drag.overId===r.id?' drag-over':''}`}
+                    draggable onDragStart={()=>drag.onDragStart(r.id)}
+                    onDragOver={e=>drag.onDragOver(e,r.id)} onDrop={drag.onDrop} onDragEnd={drag.onDragEnd}>
+                    <td><span className="drag-handle">⠿</span></td>
+                    <td><IconPicker value={r.icon||'📦'} icons={FOOD_ICONS} onChange={ic=>foodStore.update(r.id,{icon:ic})} /></td>
+                    <td><EditCell value={r.name} onSave={v=>v.trim()&&foodStore.update(r.id,{name:v.trim()})} /></td>
+                    <td><EditCell value={r.default_unit||''} type="select" options={uNames} placeholder="–" onSave={v=>foodStore.update(r.id,{default_unit:v})} /></td>
+                    <td className="td-muted"><EditCell value={r.note||''} placeholder="Notiz…" onSave={v=>foodStore.update(r.id,{note:v})} /></td>
+                    <td><div className="row-actions">
+                      <button className="row-btn" title="Duplizieren" onClick={()=>foodStore.duplicate(r.id)}>⧉</button>
+                      <button className="row-btn danger" onClick={()=>window.confirm(`„${r.name}" löschen?`)&&foodStore.remove(r.id)}>✕</button>
+                    </div></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       ))}
-      <p className="hint">{rows.length} Lebensmittel gesamt · Felder direkt klickbar</p>
+      <p className="hint">{rows.length} Lebensmittel · Std.-Einheit optional · ⠿ ziehen zum Sortieren · ⧉ = Duplizieren</p>
     </div>
   )
 }
 
+/* ══════════════════════════════════════════════════════
+   EINHEITEN
+══════════════════════════════════════════════════════ */
 function UnitsTab() {
   const rows = useStore(unitStore)
   const [adding, setAdding] = useState(false)
-  const [form, setForm]     = useState({ name:'', abbr:'', note:'' })
+  const [form, setForm] = useState({ name:'', abbr:'', note:'' })
+  const drag = useDrag(rows, unitStore)
   const add = () => {
     if (!form.name.trim()) return
     unitStore.add({ name:form.name.trim(), abbr:form.abbr.trim(), note:form.note })
@@ -216,8 +308,8 @@ function UnitsTab() {
       </div>
       {adding && (
         <AddPanel title="Neue Mengeneinheit" onCancel={() => setAdding(false)} onSave={add}>
-          <div className="add-panel-grid" style={{ gridTemplateColumns:'2fr 1fr 3fr' }}>
-            {[{l:'Name *',f:'name',p:'Flasche/n'},{l:'Abk.',f:'abbr',p:'Fl.'},{l:'Beschreibung',f:'note',p:'Optional'}].map(({l,f,p}) => (
+          <div style={{ display:'grid', gridTemplateColumns:'2fr 1fr 3fr', gap:10 }}>
+            {[{l:'Name *',f:'name',p:'Flasche/n'},{l:'Abk.',f:'abbr',p:'Fl.'},{l:'Beschreibung',f:'note',p:'Optional'}].map(({l,f,p})=>(
               <div key={f}><Lbl>{l}</Lbl>
                 <input className="form-input" value={form[f]} placeholder={p}
                   onChange={e => setForm(x=>({...x,[f]:e.target.value}))}
@@ -227,28 +319,42 @@ function UnitsTab() {
           </div>
         </AddPanel>
       )}
-      <DataTable cols={[{label:'Name'},{label:'Abk.',w:100},{label:'Beschreibung'},{label:'',w:44}]}
-        empty={rows.length===0 ? 'Keine Einheiten.' : null}>
-        {rows.map(r => (
-          <tr key={r.id}>
-            <td style={{ fontWeight:500 }}><EditCell value={r.name} onSave={v => v.trim()&&unitStore.update(r.id,{name:v.trim()})} /></td>
-            <td><EditCell value={r.abbr||''} onSave={v => unitStore.update(r.id,{abbr:v})} mono /></td>
-            <td className="td-muted"><EditCell value={r.note||''} onSave={v => unitStore.update(r.id,{note:v})} /></td>
-            <td style={{textAlign:'right'}}>
-              <button className="btn-danger-ghost btn" onClick={() => window.confirm(`„${r.name}" löschen?`)&&unitStore.remove(r.id)}>✕</button>
-            </td>
-          </tr>
-        ))}
-      </DataTable>
-      <p className="hint">Reihenfolge bestimmt Anzeigereihenfolge in Formularen</p>
+      <div className="data-table-wrap">
+        <table className="data-table">
+          <thead><tr>
+            <th style={{width:32}}></th>
+            <th>Name</th><th style={{width:100}}>Abk.</th><th>Beschreibung</th><th style={{width:60}}></th>
+          </tr></thead>
+          <tbody>
+            {rows.length===0 && <tr><td colSpan={5} style={{textAlign:'center',padding:40,color:'var(--text-muted)'}}>Keine Einheiten.</td></tr>}
+            {rows.map(r => (
+              <tr key={r.id} className={`drag-row${drag.overId===r.id?' drag-over':''}`}
+                draggable onDragStart={()=>drag.onDragStart(r.id)}
+                onDragOver={e=>drag.onDragOver(e,r.id)} onDrop={drag.onDrop} onDragEnd={drag.onDragEnd}>
+                <td><span className="drag-handle">⠿</span></td>
+                <td style={{fontWeight:500}}><EditCell value={r.name} onSave={v=>v.trim()&&unitStore.update(r.id,{name:v.trim()})} /></td>
+                <td><EditCell value={r.abbr||''} onSave={v=>unitStore.update(r.id,{abbr:v})} mono /></td>
+                <td className="td-muted"><EditCell value={r.note||''} onSave={v=>unitStore.update(r.id,{note:v})} /></td>
+                <td><div className="row-actions">
+                  <button className="row-btn danger" onClick={()=>window.confirm(`„${r.name}" löschen?`)&&unitStore.remove(r.id)}>✕</button>
+                </div></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="hint">⠿ ziehen zum Sortieren · Reihenfolge = Anzeigereihenfolge in Formularen</p>
     </div>
   )
 }
 
+/* ══════════════════════════════════════════════════════
+   BENUTZER
+══════════════════════════════════════════════════════ */
 function UsersTab() {
   const rows = useStore(userStore)
   const [adding, setAdding] = useState(false)
-  const [form, setForm]     = useState({ name:'', role:'user', note:'' })
+  const [form, setForm] = useState({ name:'', role:'user', note:'' })
   const add = () => {
     if (!form.name.trim()) return
     userStore.add({ name:form.name.trim(), role:form.role, note:form.note })
@@ -265,10 +371,10 @@ function UsersTab() {
       </div>
       {adding && (
         <AddPanel title="Neuen Benutzer anlegen" onCancel={() => setAdding(false)} onSave={add}>
-          <div className="add-panel-grid" style={{ gridTemplateColumns:'2fr 1fr 3fr' }}>
+          <div style={{ display:'grid', gridTemplateColumns:'2fr 1fr 3fr', gap:10 }}>
             <div><Lbl>Name *</Lbl>
               <input className="form-input" value={form.name} placeholder="z.B. Maria"
-                onChange={e => setForm(f=>({...f,name:e.target.value}))} onKeyDown={e => e.key==='Enter'&&add()} />
+                onChange={e => setForm(f=>({...f,name:e.target.value}))} onKeyDown={e=>e.key==='Enter'&&add()} />
             </div>
             <div><Lbl>Rolle</Lbl>
               <select className="form-select" value={form.role} onChange={e => setForm(f=>({...f,role:e.target.value}))}>
@@ -282,41 +388,45 @@ function UsersTab() {
           </div>
         </AddPanel>
       )}
-      <DataTable cols={[{label:'Benutzer'},{label:'Rolle',w:140},{label:'Notiz'},{label:'',w:44}]}
-        empty={rows.length===0 ? 'Keine Benutzer.' : null}>
-        {rows.map(r => {
-          const hue = [...r.name].reduce((a,c)=>a+c.charCodeAt(0),0) % 360
-          return (
-            <tr key={r.id}>
-              <td>
-                <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-                  <div className="avatar" style={{ background:`hsl(${hue},50%,88%)`, color:`hsl(${hue},50%,30%)` }}>
-                    {initials(r.name)}
-                  </div>
-                  <EditCell value={r.name} onSave={v => v.trim()&&userStore.update(r.id,{name:v.trim()})} />
-                </div>
-              </td>
-              <td>
-                <span className={`badge role-${r.role}`}>
-                  <EditCell value={r.role} type="select" options={USER_ROLES} onSave={v => userStore.update(r.id,{role:v})} />
-                </span>
-              </td>
-              <td className="td-muted"><EditCell value={r.note||''} onSave={v => userStore.update(r.id,{note:v})} /></td>
-              <td style={{textAlign:'right'}}>
-                <button className="btn-danger-ghost btn" onClick={() => {
-                  if (rows.length<=1) { alert('Mind. 1 Benutzer erforderlich.'); return }
-                  if (window.confirm(`„${r.name}" löschen?`)) userStore.remove(r.id)
-                }}>✕</button>
-              </td>
-            </tr>
-          )
-        })}
-      </DataTable>
+      <div className="data-table-wrap">
+        <table className="data-table">
+          <thead><tr>
+            <th>Benutzer</th><th style={{width:140}}>Rolle</th><th>Notiz</th><th style={{width:60}}></th>
+          </tr></thead>
+          <tbody>
+            {rows.length===0 && <tr><td colSpan={4} style={{textAlign:'center',padding:40,color:'var(--text-muted)'}}>Keine Benutzer.</td></tr>}
+            {rows.map(r => {
+              const hue = [...r.name].reduce((a,c)=>a+c.charCodeAt(0),0)%360
+              return (
+                <tr key={r.id}>
+                  <td><div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                    <div className="avatar" style={{ background:`hsl(${hue},50%,88%)`, color:`hsl(${hue},50%,30%)` }}>{initials(r.name)}</div>
+                    <EditCell value={r.name} onSave={v=>v.trim()&&userStore.update(r.id,{name:v.trim()})} />
+                  </div></td>
+                  <td><span className={`badge role-${r.role}`}>
+                    <EditCell value={r.role} type="select" options={USER_ROLES} onSave={v=>userStore.update(r.id,{role:v})} />
+                  </span></td>
+                  <td className="td-muted"><EditCell value={r.note||''} onSave={v=>userStore.update(r.id,{note:v})} /></td>
+                  <td><div className="row-actions" style={{opacity:1}}>
+                    <button className="row-btn danger" onClick={()=>{
+                      if(rows.length<=1){alert('Mind. 1 Benutzer erforderlich.');return}
+                      if(window.confirm(`„${r.name}" löschen?`))userStore.remove(r.id)
+                    }}>✕</button>
+                  </div></td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
       <p className="hint">admin = voll · user = normal · readonly = nur lesen</p>
     </div>
   )
 }
 
+/* ══════════════════════════════════════════════════════
+   Main
+══════════════════════════════════════════════════════ */
 const TABS = [
   { id:'locations', label:'Lagerorte',    icon:'📍' },
   { id:'foods',     label:'Lebensmittel', icon:'🥦' },
@@ -331,9 +441,8 @@ export default function AdminPanel() {
     <div>
       <div className="tab-bar">
         {TABS.map(t => (
-          <button key={t.id} className={`tab-btn ${tab===t.id?'active':''}`} onClick={() => setTab(t.id)}>
-            <span>{t.icon}</span>
-            <span className="tab-label">{t.label}</span>
+          <button key={t.id} className={`tab-btn ${tab===t.id?'active':''}`} onClick={()=>setTab(t.id)}>
+            <span>{t.icon}</span><span className="tab-label">{t.label}</span>
           </button>
         ))}
       </div>

@@ -30,7 +30,7 @@ export default function ItemModal({ item, onSave, onClose }) {
   const unitNames = units.map(u => u.name)
 
   const [form, setForm] = useState({
-    name:'', qty:'', unit:unitNames[0]||'Stück', location:'',
+    name:'', qty:'', unit:'', location:'',
     stored_at:today(), expires_at:'', category:'', note:'', ean:'',
   })
   const [scanning, setScanning]         = useState(false)
@@ -43,7 +43,7 @@ export default function ItemModal({ item, onSave, onClose }) {
 
   useEffect(() => {
     if (item) {
-      setForm({ name:item.name||'', qty:item.qty??'', unit:item.unit||unitNames[0]||'Stück',
+      setForm({ name:item.name||'', qty:item.qty??'', unit:item.unit||'',
         location:item.location||'', stored_at:item.stored_at||today(),
         expires_at:item.expires_at||'', category:item.category||'', note:item.note||'', ean:item.ean||'' })
       setFoodQ(item.name || '')
@@ -57,7 +57,7 @@ export default function ItemModal({ item, onSave, onClose }) {
     : []
 
   const pickFood = (food) => {
-    setForm(f => ({ ...f, name:food.name, category:food.category||f.category, unit:food.default_unit||f.unit }))
+    setForm(f => ({ ...f, name:food.name, category:food.category||f.category, unit:food.default_unit||f.unit||'' }))
     setFoodQ(food.name); setShowSug(false)
   }
 
@@ -140,6 +140,7 @@ export default function ItemModal({ item, onSave, onClose }) {
             </Field>
             <Field label="Einheit">
               <select className="form-select" value={form.unit} onChange={e => set('unit', e.target.value)}>
+                <option value="">– bitte wählen –</option>
                 {unitNames.map(u => <option key={u}>{u}</option>)}
               </select>
             </Field>
