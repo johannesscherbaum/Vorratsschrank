@@ -17,13 +17,18 @@ function Field({ label, error, children }) {
 
 export default function ItemModal({ item, onSave, onClose }) {
   const [locations,   setLocations]   = useState(() => locationStore.getAll())
-  const [foodGroups,  setFoodGroups]  = useState(() => [...foodGroupStore.getAll()].sort((a,b)=>(a.sort||0)-(b.sort||0)))
-  const [units,       setUnits]       = useState(() => unitStore.getAll())
+  const [foodGroups,  setFoodGroups]  = useState(() => [...foodGroupStore.getAll()].sort((a,b)=>(a.sort_order||0)-(b.sort_order||0)))
+  const [units,       setUnits]       = useState(() => [...unitStore.getAll()].sort((a,b)=>(a.sort_order||0)-(b.sort_order||0)))
 
   useEffect(() => {
-    const u1 = locationStore.subscribe(()  => setLocations(locationStore.getAll()))
-    const u2 = foodGroupStore.subscribe(() => setFoodGroups([...foodGroupStore.getAll()].sort((a,b)=>(a.sort||0)-(b.sort||0))))
-    const u3 = unitStore.subscribe(()      => setUnits(unitStore.getAll()))
+    const refresh1 = () => setLocations([...locationStore.getAll()].sort((a,b)=>(a.sort_order||0)-(b.sort_order||0)))
+    const refresh2 = () => setFoodGroups([...foodGroupStore.getAll()].sort((a,b)=>(a.sort_order||0)-(b.sort_order||0)))
+    const refresh3 = () => setUnits([...unitStore.getAll()].sort((a,b)=>(a.sort_order||0)-(b.sort_order||0)))
+    const u1 = locationStore.subscribe(refresh1)
+    const u2 = foodGroupStore.subscribe(refresh2)
+    const u3 = unitStore.subscribe(refresh3)
+    // Trigger immediately in case Supabase data already loaded
+    refresh1(); refresh2(); refresh3()
     return () => { u1(); u2(); u3() }
   }, [])
 
@@ -80,7 +85,19 @@ export default function ItemModal({ item, onSave, onClose }) {
     if (!form.location)    e.location = 'Standort erforderlich'
     if (Object.keys(e).length) { setErrors(e); return }
     setSaving(true)
-    await onSave({ ...form, qty: form.qty !== '' ? Number(form.qty) : null })
+    // Clean payload: empty strings → null, remove unused fields
+    const payload = {
+      name:       form.name.trim(),
+      location:   form.location,
+      qty:        form.qty !== '' ? Number(form.qty) : null,
+      unit:       form.unit       || null,
+      food_group: form.food_group || null,
+      stored_at:  form.stored_at  || null,
+      expires_at: form.expires_at || null,
+      note:       form.note       || null,
+      ean:        form.ean        || null,
+    }
+    await onSave(payload)
     setSaving(false)
   }
 
@@ -162,7 +179,7 @@ export default function ItemModal({ item, onSave, onClose }) {
           <Field label="Standort *" error={errors.location}>
             <select className="form-select" value={form.location} onChange={e => set('location', e.target.value)}>
               <option value="">Bitte wählen…</option>
-              {[...locations].sort((a,b)=>(a.sort||0)-(b.sort||0)).map(l => (
+              {[...locations].sort((a,b)=>(a.sort_order||0)-(b.sort_order||0)).map(l => (
                 <option key={l.id} value={l.name}>{l.icon ? l.icon+' ' : ''}{l.name}</option>
               ))}
             </select>

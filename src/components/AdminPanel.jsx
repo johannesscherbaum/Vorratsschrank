@@ -8,8 +8,13 @@ import {
 /* ── Helpers ─────────────────────────────────────────── */
 function useStore(store) {
   const [rows, setRows] = useState(() => store.getAll())
-  useEffect(() => store.subscribe(() => setRows(store.getAll())), [])
-  return [...rows].sort((a, b) => (a.sort || 0) - (b.sort || 0))
+  useEffect(() => {
+    const unsub = store.subscribe(() => setRows(store.getAll()))
+    // Trigger immediately so Supabase async data populates on mount
+    setRows(store.getAll())
+    return unsub
+  }, []) // eslint-disable-line
+  return [...rows].sort((a, b) => (a.sort_order || a.sort || 0) - (b.sort_order || b.sort || 0))
 }
 
 function Lbl({ children }) {

@@ -37,16 +37,19 @@ function useIconMaps() {
     return map
   })
   React.useEffect(() => {
-    const u1 = foodGroupStore.subscribe(() => {
+    const buildGroupMap = () => {
       const map = {}
       foodGroupStore.getAll().forEach(g => { if (g.icon) map[g.name] = g.icon })
       setGroupIcons(map)
-    })
-    const u2 = locationStore.subscribe(() => {
+    }
+    const buildLocMap = () => {
       const map = {}
       locationStore.getAll().forEach(l => { if (l.icon) map[l.name] = l.icon })
       setLocIcons(map)
-    })
+    }
+    const u1 = foodGroupStore.subscribe(buildGroupMap)
+    const u2 = locationStore.subscribe(buildLocMap)
+    buildGroupMap(); buildLocMap()
     return () => { u1(); u2() }
   }, [])
   return { groupIcons, locIcons }
