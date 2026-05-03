@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, lazy, Suspense } from 'react'
 import { fetchItems, insertItem, updateItem, deleteItem, subscribeToChanges, isLocalMode } from './lib/db.js'
+import { foodStore, locationStore } from './lib/adminDb.js'
 const ItemModal  = lazy(() => import('./components/ItemModal.jsx'))
 const AdminPanel = lazy(() => import('./components/AdminPanel.jsx'))
 const LoginPage  = lazy(() => import('./components/LoginPage.jsx'))
@@ -21,6 +22,20 @@ function fmt(s) {
   if (!s) return ''
   const [y, m, d] = s.split('-')
   return `${d}.${m}.${y}`
+}
+
+// Look up icon from food stammdaten by name
+function getFoodIcon(name) {
+  const foods = foodStore.getAll()
+  const match = foods.find(f => f.name.toLowerCase() === name?.toLowerCase())
+  return match?.icon || null
+}
+
+// Look up icon from location stammdaten
+function getLocationIcon(name) {
+  const locs = locationStore.getAll()
+  const match = locs.find(l => l.name === name)
+  return match?.icon || null
 }
 
 const SORT_OPTIONS = [
@@ -301,7 +316,12 @@ function AppInner({ session }) {
                 return (
                   <div key={item.id} className={`item-card ${st!=='ok'?st:''}`} onClick={() => openEdit(item)}>
                     <div className="item-header">
-                      <span className="item-name">{item.name}</span>
+                      <div style={{ display:'flex', alignItems:'center', gap:8, flex:1, minWidth:0 }}>
+                        {getFoodIcon(item.name) && (
+                          <span style={{ fontSize:22, lineHeight:1, flexShrink:0 }}>{getFoodIcon(item.name)}</span>
+                        )}
+                        <span className="item-name">{item.name}</span>
+                      </div>
                       <div className="item-actions">
                         <button className="btn btn-icon" onClick={e=>{e.stopPropagation();openEdit(item)}}>✎</button>
                         <button className="btn btn-icon" onClick={e=>{e.stopPropagation();remove(item.id)}}
@@ -311,7 +331,10 @@ function AppInner({ session }) {
                     </div>
 
                     <div className="item-badges">
-                      <span className="badge badge-blue">{item.location}</span>
+                      <span className="badge badge-blue">
+                        {getLocationIcon(item.location) && <span style={{marginRight:3}}>{getLocationIcon(item.location)}</span>}
+                        {item.location}
+                      </span>
                       {item.category && <span className="badge badge-gray">{item.category}</span>}
                       {st==='expired' && <span className="badge badge-red">Abgelaufen</span>}
                       {st==='soon'    && <span className="badge badge-amber">Noch {d} Tag{d!==1?'e':''}</span>}
