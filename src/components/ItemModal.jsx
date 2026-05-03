@@ -85,17 +85,19 @@ export default function ItemModal({ item, onSave, onClose }) {
     if (!form.location)    e.location = 'Standort erforderlich'
     if (Object.keys(e).length) { setErrors(e); return }
     setSaving(true)
-    // Clean payload: empty strings → null, remove unused fields
+    // Clean payload: empty strings → null (especially for date fields)
+    const strOrNull  = v => (v && v.trim()) ? v.trim() : null
+    const dateOrNull = v => (v && v.match(/^\d{4}-\d{2}-\d{2}$/)) ? v : null
     const payload = {
       name:       form.name.trim(),
       location:   form.location,
-      qty:        form.qty !== '' ? Number(form.qty) : null,
-      unit:       form.unit       || null,
-      food_group: form.food_group || null,
-      stored_at:  form.stored_at  || null,
-      expires_at: form.expires_at || null,
-      note:       form.note       || null,
-      ean:        form.ean        || null,
+      qty:        form.qty !== '' && form.qty !== null ? Number(form.qty) : null,
+      unit:       strOrNull(form.unit),
+      food_group: strOrNull(form.food_group),
+      stored_at:  dateOrNull(form.stored_at),
+      expires_at: dateOrNull(form.expires_at),
+      note:       strOrNull(form.note),
+      ean:        strOrNull(form.ean),
     }
     await onSave(payload)
     setSaving(false)
