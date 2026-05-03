@@ -24,18 +24,32 @@ function fmt(s) {
   return `${d}.${m}.${y}`
 }
 
-// Look up icon from food stammdaten by name
-function getFoodIcon(name) {
-  const foods = foodStore.getAll()
-  const match = foods.find(f => f.name.toLowerCase() === name?.toLowerCase())
-  return match?.icon || null
-}
-
-// Look up icon from location stammdaten
-function getLocationIcon(name) {
-  const locs = locationStore.getAll()
-  const match = locs.find(l => l.name === name)
-  return match?.icon || null
+// Build lookup maps from stammdaten – reactive via useState
+function useIconMaps() {
+  const [foodIcons, setFoodIcons] = React.useState(() => {
+    const map = {}
+    foodStore.getAll().forEach(f => { if (f.icon) map[f.name.toLowerCase()] = f.icon })
+    return map
+  })
+  const [locIcons, setLocIcons] = React.useState(() => {
+    const map = {}
+    locationStore.getAll().forEach(l => { if (l.icon) map[l.name] = l.icon })
+    return map
+  })
+  React.useEffect(() => {
+    const u1 = foodStore.subscribe(() => {
+      const map = {}
+      foodStore.getAll().forEach(f => { if (f.icon) map[f.name.toLowerCase()] = f.icon })
+      setFoodIcons(map)
+    })
+    const u2 = locationStore.subscribe(() => {
+      const map = {}
+      locationStore.getAll().forEach(l => { if (l.icon) map[l.name] = l.icon })
+      setLocIcons(map)
+    })
+    return () => { u1(); u2() }
+  }, [])
+  return { foodIcons, locIcons }
 }
 
 const SORT_OPTIONS = [
@@ -107,6 +121,7 @@ function ChangePasswordForm({ onDone }) {
 }
 
 function AppInner({ session }) {
+  const { foodIcons, locIcons } = useIconMaps()
   const [view,      setView]      = useState('vorrat')
   const [items,     setItems]     = useState([])
   const [loading,   setLoading]   = useState(true)
@@ -315,14 +330,13 @@ function AppInner({ session }) {
                 const d  = daysUntil(item.expires_at)
                 return (
                   <div key={item.id} className={`item-card ${st!=='ok'?st:''}`} onClick={() => openEdit(item)}>
-                    <div className="item-header">
-                      <div style={{ display:'flex', alignItems:'center', gap:8, flex:1, minWidth:0 }}>
-                        {getFoodIcon(item.name) && (
-                          <span style={{ fontSize:22, lineHeight:1, flexShrink:0 }}>{getFoodIcon(item.name)}</span>
-                        )}
-                        <span className="item-name">{item.name}</span>
+
+                    {/* Food icon – large, top of card */}
+                    <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', marginBottom:10 }}>
+                      <div style={{ fontSize:40, lineHeight:1 }}>
+                        {foodIcons[item.name?.toLowerCase()] || '📦'}
                       </div>
-                      <div className="item-actions">
+                      <div className="item-actions" style={{ opacity:1 }}>
                         <button className="btn btn-icon" onClick={e=>{e.stopPropagation();openEdit(item)}}>✎</button>
                         <button className="btn btn-icon" onClick={e=>{e.stopPropagation();remove(item.id)}}
                           style={{ color:'var(--text-muted)' }} onMouseEnter={e=>e.currentTarget.style.color='var(--red)'}
@@ -330,9 +344,13 @@ function AppInner({ session }) {
                       </div>
                     </div>
 
+                    <div className="item-header" style={{ marginBottom:8 }}>
+                      <span className="item-name">{item.name}</span>
+                    </div>
+
                     <div className="item-badges">
                       <span className="badge badge-blue">
-                        {getLocationIcon(item.location) && <span style={{marginRight:3}}>{getLocationIcon(item.location)}</span>}
+                        {locIcons[item.location] && <span style={{marginRight:3}}>{locIcons[item.location]}</span>}
                         {item.location}
                       </span>
                       {item.category && <span className="badge badge-gray">{item.category}</span>}
