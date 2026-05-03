@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
+import ReactDOM from 'react-dom'
 import {
   locationStore, foodStore, unitStore, userStore,
   CATEGORIES, USER_ROLES, LOCATION_ICONS, FOOD_ICONS,
@@ -16,29 +17,66 @@ function Lbl({ children }) {
 }
 
 /* ── Icon Picker ─────────────────────────────────────── */
-function IconPicker({ value, onChange, icons }) {
-  const [open, setOpen] = useState(false)
-  const ref = useRef()
-  useEffect(() => {
-    if (!open) return
-    const h = e => { if (!ref.current?.contains(e.target)) setOpen(false) }
+function IconPickerPopup({ icons, value, onChange, onClose, anchorRef }) {
+  const popupRef = React.useRef()
+  const [pos, setPos] = React.useState({ top: 0, left: 0 })
+
+  React.useEffect(() => {
+    if (!anchorRef.current) return
+    const rect = anchorRef.current.getBoundingClientRect()
+    const popupH = 230
+    const popupW = 260
+    const spaceBelow = window.innerHeight - rect.bottom
+    const top  = spaceBelow >= popupH ? rect.bottom + 6 : rect.top - popupH - 6
+    const left = Math.min(rect.left, window.innerWidth - popupW - 8)
+    setPos({ top: top + window.scrollY, left: left + window.scrollX })
+  }, [anchorRef])
+
+  React.useEffect(() => {
+    const h = e => {
+      if (!popupRef.current?.contains(e.target) && !anchorRef.current?.contains(e.target))
+        onClose()
+    }
     document.addEventListener('mousedown', h)
     return () => document.removeEventListener('mousedown', h)
-  }, [open])
+  }, [onClose, anchorRef])
+
+  return ReactDOM.createPortal(
+    <div ref={popupRef} style={{
+      position: 'absolute', top: pos.top, left: pos.left, zIndex: 9999,
+      background: 'var(--white)', border: '1px solid var(--border)',
+      borderRadius: 'var(--radius)', boxShadow: 'var(--shadow-lg)',
+      padding: 10, width: 260,
+    }}>
+      <div style={{
+        display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)',
+        gap: 2, maxHeight: 200, overflowY: 'auto',
+      }}>
+        {icons.map(ic => (
+          <button key={ic} type="button"
+            className={`icon-option${value === ic ? ' selected' : ''}`}
+            onMouseDown={e => { e.preventDefault(); onChange(ic); onClose() }}>
+            {ic}
+          </button>
+        ))}
+      </div>
+    </div>,
+    document.body
+  )
+}
+
+function IconPicker({ value, onChange, icons }) {
+  const [open, setOpen] = useState(false)
+  const btnRef = useRef()
   return (
-    <div className="icon-picker-wrap" ref={ref}>
-      <button type="button" className="icon-btn-trigger" onClick={() => setOpen(o => !o)} title="Icon wählen">
+    <div style={{ position: 'relative', display: 'inline-block' }}>
+      <button ref={btnRef} type="button" className="icon-btn-trigger"
+        onClick={() => setOpen(o => !o)} title="Icon wählen">
         {value || '❓'}
       </button>
       {open && (
-        <div className="icon-picker-popup">
-          <div className="icon-picker-grid">
-            {icons.map(ic => (
-              <button key={ic} type="button" className={`icon-option${value === ic ? ' selected' : ''}`}
-                onClick={() => { onChange(ic); setOpen(false) }}>{ic}</button>
-            ))}
-          </div>
-        </div>
+        <IconPickerPopup icons={icons} value={value} onChange={onChange}
+          onClose={() => setOpen(false)} anchorRef={btnRef} />
       )}
     </div>
   )
