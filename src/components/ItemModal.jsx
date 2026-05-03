@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import BarcodeScanner from './BarcodeScanner.jsx'
 import { lookupEAN }  from '../lib/eanLookup.js'
-import { locationStore, foodStore, unitStore, CATEGORIES } from '../lib/adminDb.js'
+import { locationStore, foodGroupStore, unitStore } from '../lib/adminDb.js'
 
 const today = () => new Date().toISOString().split('T')[0]
 
@@ -16,59 +16,61 @@ function Field({ label, error, children }) {
 }
 
 export default function ItemModal({ item, onSave, onClose }) {
-  const [locations, setLocations] = useState(() => locationStore.getAll())
-  const [foods,     setFoods]     = useState(() => foodStore.getAll())
-  const [units,     setUnits]     = useState(() => unitStore.getAll())
+  const [locations,   setLocations]   = useState(() => locationStore.getAll())
+  const [foodGroups,  setFoodGroups]  = useState(() => [...foodGroupStore.getAll()].sort((a,b)=>(a.sort||0)-(b.sort||0)))
+  const [units,       setUnits]       = useState(() => unitStore.getAll())
 
   useEffect(() => {
-    const u1 = locationStore.subscribe(() => setLocations(locationStore.getAll()))
-    const u2 = foodStore.subscribe(()     => setFoods(foodStore.getAll()))
-    const u3 = unitStore.subscribe(()     => setUnits(unitStore.getAll()))
+    const u1 = locationStore.subscribe(()  => setLocations(locationStore.getAll()))
+    const u2 = foodGroupStore.subscribe(() => setFoodGroups([...foodGroupStore.getAll()].sort((a,b)=>(a.sort||0)-(b.sort||0))))
+    const u3 = unitStore.subscribe(()      => setUnits(unitStore.getAll()))
     return () => { u1(); u2(); u3() }
   }, [])
 
-  const unitNames = units.map(u => u.name)
+  const unitNames = [...units].sort((a,b)=>(a.sort||0)-(b.sort||0)).map(u => u.name)
 
   const [form, setForm] = useState({
     name:'', qty:'', unit:'', location:'',
-    stored_at:today(), expires_at:'', category:'', note:'', ean:'',
+    food_group:'', stored_at:today(), expires_at:'', note:'', ean:'',
   })
-  const [scanning, setScanning]         = useState(false)
-  const [looking,  setLooking]          = useState(false)
-  const [scanMsg,  setScanMsg]          = useState('')
-  const [saving,   setSaving]           = useState(false)
-  const [errors,   setErrors]           = useState({})
-  const [foodQ,    setFoodQ]            = useState('')
-  const [showSug,  setShowSug]          = useState(false)
+  const [scanning, setScanning] = useState(false)
+  const [looking,  setLooking]  = useState(false)
+  const [scanMsg,  setScanMsg]  = useState('')
+  const [saving,   setSaving]   = useState(false)
+  const [errors,   setErrors]   = useState({})
 
   useEffect(() => {
     if (item) {
-      setForm({ name:item.name||'', qty:item.qty??'', unit:item.unit||'',
-        location:item.location||'', stored_at:item.stored_at||today(),
-        expires_at:item.expires_at||'', category:item.category||'', note:item.note||'', ean:item.ean||'' })
-      setFoodQ(item.name || '')
+      setForm({
+        name:       item.name       || '',
+        qty:        item.qty        ?? '',
+        unit:       item.unit       || '',
+        location:   item.location   || '',
+        food_group: item.food_group || '',
+        stored_at:  item.stored_at  || today(),
+        expires_at: item.expires_at || '',
+        note:       item.note       || '',
+        ean:        item.ean        || '',
+      })
     }
   }, [item]) // eslint-disable-line
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
-  const suggestions = foodQ.length >= 1
-    ? foods.filter(f => f.name.toLowerCase().includes(foodQ.toLowerCase())).slice(0, 8)
-    : []
-
-  const pickFood = (food) => {
-    setForm(f => ({ ...f, name:food.name, category:food.category||f.category, unit:food.default_unit||f.unit||'' }))
-    setFoodQ(food.name); setShowSug(false)
-  }
+  // Selected group object (for icon preview)
+  const selectedGroup = foodGroups.find(g => g.name === form.food_group)
 
   const handleEAN = async (ean) => {
     setScanning(false); setLooking(true); setScanMsg(''); set('ean', ean)
     const p = await lookupEAN(ean)
     setLooking(false)
     if (!p?.name) { setScanMsg(`EAN ${ean} – kein Produkt gefunden.`); return }
-    setForm(f => ({ ...f, ean, name:p.name||f.name, category:p.category||f.category,
-      qty:p.qty!==''?p.qty:f.qty, unit:p.unit||f.unit }))
-    setFoodQ(p.name || '')
+    setForm(f => ({
+      ...f, ean,
+      name: p.name || f.name,
+      qty:  p.qty !== '' ? p.qty : f.qty,
+      unit: p.unit || f.unit,
+    }))
     setScanMsg(`✓ „${p.name}" gefunden`)
   }
 
@@ -112,27 +114,37 @@ export default function ItemModal({ item, onSave, onClose }) {
 
           <hr className="modal-divider" />
 
-          {/* Name + autocomplete */}
-          <Field label="Name *" error={errors.name}>
-            <div className="autocomplete">
-              <input className="form-input" value={foodQ} autoComplete="off"
-                placeholder="Tippen oder aus Liste wählen…"
-                onChange={e => { setFoodQ(e.target.value); set('name', e.target.value); setShowSug(true) }}
-                onFocus={() => setShowSug(true)}
-                onBlur={() => setTimeout(() => setShowSug(false), 150)} />
-              {showSug && suggestions.length > 0 && (
-                <div className="autocomplete-list">
-                  {suggestions.map(f => (
-                    <div key={f.id} className="autocomplete-item" onMouseDown={() => pickFood(f)}>
-                      <span className="name">{f.name}</span>
-                      <span className="cat">{f.category}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
+          {/* Lebensmittelgruppe */}
+          <Field label="Lebensmittelgruppe">
+            <div style={{ display:'flex', gap:10, alignItems:'center' }}>
+              {/* Icon preview */}
+              <div style={{
+                width:42, height:42, flexShrink:0,
+                background:'var(--gray-light)', borderRadius:'var(--radius-sm)',
+                border:'1px solid var(--border)',
+                display:'flex', alignItems:'center', justifyContent:'center',
+                fontSize:22,
+              }}>
+                {selectedGroup?.icon || '❓'}
+              </div>
+              <select className="form-select" style={{ flex:1 }}
+                value={form.food_group} onChange={e => set('food_group', e.target.value)}>
+                <option value="">– Gruppe wählen (optional) –</option>
+                {foodGroups.map(g => (
+                  <option key={g.id} value={g.name}>{g.icon} {g.name}</option>
+                ))}
+              </select>
             </div>
           </Field>
 
+          {/* Name – Freitext */}
+          <Field label="Bezeichnung *" error={errors.name}>
+            <input className="form-input" value={form.name} autoComplete="off"
+              placeholder="z.B. Hähnchenbrustfilet, Steak vom Metzger…"
+              onChange={e => set('name', e.target.value)} />
+          </Field>
+
+          {/* Menge + Einheit */}
           <div className="form-grid-2">
             <Field label="Menge">
               <input className="form-input" type="number" min="0" step="0.1"
@@ -146,31 +158,32 @@ export default function ItemModal({ item, onSave, onClose }) {
             </Field>
           </div>
 
+          {/* Standort */}
           <Field label="Standort *" error={errors.location}>
             <select className="form-select" value={form.location} onChange={e => set('location', e.target.value)}>
               <option value="">Bitte wählen…</option>
-              {locations.map(l => <option key={l.id} value={l.name}>{l.icon ? l.icon+' ' : ''}{l.name}</option>)}
+              {[...locations].sort((a,b)=>(a.sort||0)-(b.sort||0)).map(l => (
+                <option key={l.id} value={l.name}>{l.icon ? l.icon+' ' : ''}{l.name}</option>
+              ))}
             </select>
           </Field>
 
+          {/* Datum */}
           <div className="form-grid-2">
             <Field label="Eingelagert am">
-              <input className="form-input" type="date" value={form.stored_at} onChange={e => set('stored_at', e.target.value)} />
+              <input className="form-input" type="date" value={form.stored_at}
+                onChange={e => set('stored_at', e.target.value)} />
             </Field>
             <Field label="MHD">
-              <input className="form-input" type="date" value={form.expires_at} onChange={e => set('expires_at', e.target.value)} />
+              <input className="form-input" type="date" value={form.expires_at}
+                onChange={e => set('expires_at', e.target.value)} />
             </Field>
           </div>
 
-          <Field label="Kategorie">
-            <select className="form-select" value={form.category} onChange={e => set('category', e.target.value)}>
-              <option value="">–</option>
-              {CATEGORIES.map(c => <option key={c}>{c}</option>)}
-            </select>
-          </Field>
-
+          {/* Notiz */}
           <Field label="Notiz">
-            <input className="form-input" value={form.note} onChange={e => set('note', e.target.value)} placeholder="Optionale Bemerkung…" />
+            <input className="form-input" value={form.note}
+              onChange={e => set('note', e.target.value)} placeholder="Optionale Bemerkung…" />
           </Field>
 
           <div className="modal-footer">

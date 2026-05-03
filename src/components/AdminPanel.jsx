@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import ReactDOM from 'react-dom'
 import {
-  locationStore, foodStore, unitStore, userStore,
-  CATEGORIES, USER_ROLES, LOCATION_ICONS, FOOD_ICONS,
+  locationStore, foodGroupStore, unitStore, userStore,
+  USER_ROLES, LOCATION_ICONS, FOOD_ICONS,
 } from '../lib/adminDb.js'
 
 /* ── Helpers ─────────────────────────────────────────── */
@@ -222,56 +222,37 @@ function LocationsTab() {
 /* ══════════════════════════════════════════════════════
    LEBENSMITTEL
 ══════════════════════════════════════════════════════ */
-function FoodsTab({ units }) {
-  const rows = useStore(foodStore)
+function FoodsTab() {
+  const rows = useStore(foodGroupStore)
   const [q, setQ] = useState('')
-  const [catF, setCatF] = useState('')
   const [adding, setAdding] = useState(false)
-  const [form, setForm] = useState({ name:'', icon:'📦', category:CATEGORIES[0], default_unit:'', note:'' })
-  const drag = useDrag(rows, foodStore)
-  const uNames = units.map(u => u.name)
-  const filtered = rows.filter(r => r.name.toLowerCase().includes(q.toLowerCase()) && (!catF||r.category===catF))
-  const byCat = {}
-  filtered.forEach(r => { if(!byCat[r.category]) byCat[r.category]=[]; byCat[r.category].push(r) })
+  const [form, setForm] = useState({ name:'', icon:'📦', note:'' })
+  const drag = useDrag(rows, foodGroupStore)
+  const filtered = rows.filter(r => r.name.toLowerCase().includes(q.toLowerCase()))
   const add = () => {
     if (!form.name.trim()) return
-    foodStore.add({...form, name:form.name.trim()})
-    setForm({ name:'', icon:'📦', category:CATEGORIES[0], default_unit:'', note:'' }); setAdding(false)
+    foodGroupStore.add({...form, name:form.name.trim()})
+    setForm({ name:'', icon:'📦', note:'' }); setAdding(false)
   }
   return (
     <div>
       <div className="toolbar">
         <input className="form-input" style={{ maxWidth:200 }} placeholder="Suchen…"
           value={q} onChange={e => setQ(e.target.value)} />
-        <select className="form-select" style={{ width:'auto' }} value={catF} onChange={e => setCatF(e.target.value)}>
-          <option value="">Alle Kategorien</option>
-          {CATEGORIES.map(c => <option key={c}>{c}</option>)}
-        </select>
         <button className="btn btn-primary" onClick={() => setAdding(a=>!a)}>
-          {adding ? '✕ Abbrechen' : '+ Lebensmittel'}
+          {adding ? '✕ Abbrechen' : '+ Gruppe'}
         </button>
       </div>
       {adding && (
-        <AddPanel title="Neues Lebensmittel" onCancel={() => setAdding(false)} onSave={add}>
-          <div style={{ display:'grid', gridTemplateColumns:'44px 2fr 2fr 1fr 2fr', gap:10, alignItems:'end' }}>
+        <AddPanel title="Neue Lebensmittelgruppe" onCancel={() => setAdding(false)} onSave={add}>
+          <div style={{ display:'grid', gridTemplateColumns:'44px 2fr 3fr', gap:10, alignItems:'end' }}>
             <div><Lbl>Icon</Lbl>
               <IconPicker value={form.icon} icons={FOOD_ICONS} onChange={ic => setForm(f=>({...f,icon:ic}))} />
             </div>
             <div><Lbl>Name *</Lbl>
-              <input className="form-input" value={form.name} placeholder="z.B. Steak"
+              <input className="form-input" value={form.name} placeholder="z.B. Fleisch"
                 onChange={e => setForm(f=>({...f,name:e.target.value}))}
                 onKeyDown={e => e.key==='Enter'&&add()} />
-            </div>
-            <div><Lbl>Kategorie</Lbl>
-              <select className="form-select" value={form.category} onChange={e => setForm(f=>({...f,category:e.target.value}))}>
-                {CATEGORIES.map(c => <option key={c}>{c}</option>)}
-              </select>
-            </div>
-            <div><Lbl>Std.-Einheit</Lbl>
-              <select className="form-select" value={form.default_unit} onChange={e => setForm(f=>({...f,default_unit:e.target.value}))}>
-                <option value="">–</option>
-                {uNames.map(u => <option key={u}>{u}</option>)}
-              </select>
             </div>
             <div><Lbl>Notiz</Lbl>
               <input className="form-input" value={form.note} placeholder="Optional"
@@ -280,45 +261,35 @@ function FoodsTab({ units }) {
           </div>
         </AddPanel>
       )}
-      {filtered.length===0 && <p style={{textAlign:'center',padding:40,color:'var(--text-muted)'}}>Keine Lebensmittel.</p>}
-      {Object.entries(byCat).map(([cat, items]) => (
-        <div key={cat} style={{ marginBottom:20 }}>
-          <div style={{ display:'flex', alignItems:'center', gap:8, padding:'4px 0 8px' }}>
-            <span style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'.06em' }}>{cat}</span>
-            <span style={{ fontSize:11, color:'var(--text-muted)', background:'var(--gray-light)', borderRadius:999, padding:'1px 8px' }}>{items.length}</span>
-          </div>
-          <div className="data-table-wrap">
-            <table className="data-table">
-              <thead><tr>
-                <th style={{width:32}}></th>
-                <th style={{width:48}}>Icon</th>
-                <th>Name</th>
-                <th style={{width:120}}>Std.-Einheit</th>
-                <th>Notiz</th>
-                <th style={{width:110}}></th>
-              </tr></thead>
-              <tbody>
-                {items.map(r => (
-                  <tr key={r.id} className={`drag-row${drag.overId===r.id?' drag-over':''}`}
-                    draggable onDragStart={()=>drag.onDragStart(r.id)}
-                    onDragOver={e=>drag.onDragOver(e,r.id)} onDrop={drag.onDrop} onDragEnd={drag.onDragEnd}>
-                    <td><span className="drag-handle">⠿</span></td>
-                    <td><IconPicker value={r.icon||'📦'} icons={FOOD_ICONS} onChange={ic=>foodStore.update(r.id,{icon:ic})} /></td>
-                    <td><EditCell value={r.name} onSave={v=>v.trim()&&foodStore.update(r.id,{name:v.trim()})} /></td>
-                    <td><EditCell value={r.default_unit||''} type="select" options={uNames} placeholder="–" onSave={v=>foodStore.update(r.id,{default_unit:v})} /></td>
-                    <td className="td-muted"><EditCell value={r.note||''} placeholder="Notiz…" onSave={v=>foodStore.update(r.id,{note:v})} /></td>
-                    <td><div className="row-actions">
-                      <button className="row-btn" title="Duplizieren" onClick={()=>foodStore.duplicate(r.id)}>⧉</button>
-                      <button className="row-btn danger" onClick={()=>window.confirm(`„${r.name}" löschen?`)&&foodStore.remove(r.id)}>✕</button>
-                    </div></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      ))}
-      <p className="hint">{rows.length} Lebensmittel · Std.-Einheit optional · ⠿ ziehen zum Sortieren · ⧉ = Duplizieren</p>
+      {filtered.length===0 && <p style={{textAlign:'center',padding:40,color:'var(--text-muted)'}}>Keine Gruppen.</p>}
+      <div className="data-table-wrap">
+        <table className="data-table">
+          <thead><tr>
+            <th style={{width:32}}></th>
+            <th style={{width:52}}>Icon</th>
+            <th>Gruppenname</th>
+            <th>Notiz</th>
+            <th style={{width:110}}></th>
+          </tr></thead>
+          <tbody>
+            {filtered.map(r => (
+              <tr key={r.id} className={`drag-row${drag.overId===r.id?' drag-over':''}`}
+                draggable onDragStart={()=>drag.onDragStart(r.id)}
+                onDragOver={e=>drag.onDragOver(e,r.id)} onDrop={drag.onDrop} onDragEnd={drag.onDragEnd}>
+                <td><span className="drag-handle">⠿</span></td>
+                <td><IconPicker value={r.icon||'📦'} icons={FOOD_ICONS} onChange={ic=>foodGroupStore.update(r.id,{icon:ic})} /></td>
+                <td><EditCell value={r.name} onSave={v=>v.trim()&&foodGroupStore.update(r.id,{name:v.trim()})} /></td>
+                <td className="td-muted"><EditCell value={r.note||''} placeholder="Notiz…" onSave={v=>foodGroupStore.update(r.id,{note:v})} /></td>
+                <td><div className="row-actions">
+                  <button className="row-btn" title="Duplizieren" onClick={()=>foodGroupStore.duplicate(r.id)}>⧉</button>
+                  <button className="row-btn danger" onClick={()=>window.confirm(`„${r.name}" löschen?`)&&foodGroupStore.remove(r.id)}>✕</button>
+                </div></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="hint">{rows.length} Gruppen · ⠿ ziehen zum Sortieren · ⧉ = Duplizieren</p>
     </div>
   )
 }
@@ -467,7 +438,7 @@ function UsersTab() {
 ══════════════════════════════════════════════════════ */
 const TABS = [
   { id:'locations', label:'Lagerorte',    icon:'📍' },
-  { id:'foods',     label:'Lebensmittel', icon:'🥦' },
+  { id:'foods',     label:'Lebensmittelgruppen', icon:'🥦' },
   { id:'units',     label:'Einheiten',    icon:'⚖️' },
   { id:'users',     label:'Benutzer',     icon:'👤' },
 ]
@@ -485,7 +456,7 @@ export default function AdminPanel() {
         ))}
       </div>
       {tab==='locations' && <LocationsTab />}
-      {tab==='foods'     && <FoodsTab units={units} />}
+      {tab==='foods'     && <FoodsTab />}
       {tab==='units'     && <UnitsTab />}
       {tab==='users'     && <UsersTab />}
     </div>

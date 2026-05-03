@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, lazy, Suspense } from 'react'
 import { fetchItems, insertItem, updateItem, deleteItem, subscribeToChanges, isLocalMode } from './lib/db.js'
-import { foodStore, locationStore } from './lib/adminDb.js'
+import { foodGroupStore, locationStore } from './lib/adminDb.js'
 const ItemModal  = lazy(() => import('./components/ItemModal.jsx'))
 const AdminPanel = lazy(() => import('./components/AdminPanel.jsx'))
 const LoginPage  = lazy(() => import('./components/LoginPage.jsx'))
@@ -26,9 +26,9 @@ function fmt(s) {
 
 // Build lookup maps from stammdaten – reactive via useState
 function useIconMaps() {
-  const [foodIcons, setFoodIcons] = React.useState(() => {
+  const [groupIcons, setGroupIcons] = React.useState(() => {
     const map = {}
-    foodStore.getAll().forEach(f => { if (f.icon) map[f.name.toLowerCase()] = f.icon })
+    foodGroupStore.getAll().forEach(g => { if (g.icon) map[g.name] = g.icon })
     return map
   })
   const [locIcons, setLocIcons] = React.useState(() => {
@@ -37,10 +37,10 @@ function useIconMaps() {
     return map
   })
   React.useEffect(() => {
-    const u1 = foodStore.subscribe(() => {
+    const u1 = foodGroupStore.subscribe(() => {
       const map = {}
-      foodStore.getAll().forEach(f => { if (f.icon) map[f.name.toLowerCase()] = f.icon })
-      setFoodIcons(map)
+      foodGroupStore.getAll().forEach(g => { if (g.icon) map[g.name] = g.icon })
+      setGroupIcons(map)
     })
     const u2 = locationStore.subscribe(() => {
       const map = {}
@@ -49,7 +49,7 @@ function useIconMaps() {
     })
     return () => { u1(); u2() }
   }, [])
-  return { foodIcons, locIcons }
+  return { groupIcons, locIcons }
 }
 
 const SORT_OPTIONS = [
@@ -121,7 +121,7 @@ function ChangePasswordForm({ onDone }) {
 }
 
 function AppInner({ session }) {
-  const { foodIcons, locIcons } = useIconMaps()
+  const { groupIcons, locIcons } = useIconMaps()
   const [view,      setView]      = useState('vorrat')
   const [items,     setItems]     = useState([])
   const [loading,   setLoading]   = useState(true)
@@ -334,7 +334,7 @@ function AppInner({ session }) {
                     {/* Food icon – large, top of card */}
                     <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', marginBottom:10 }}>
                       <div style={{ fontSize:40, lineHeight:1 }}>
-                        {foodIcons[item.name?.toLowerCase()] || '📦'}
+                        {item.food_group ? (groupIcons[item.food_group] || '📦') : '📦'}
                       </div>
                       <div className="item-actions" style={{ opacity:1 }}>
                         <button className="btn btn-icon" onClick={e=>{e.stopPropagation();openEdit(item)}}>✎</button>
