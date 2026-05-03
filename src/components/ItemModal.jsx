@@ -46,14 +46,16 @@ export default function ItemModal({ item, onSave, onClose }) {
 
   useEffect(() => {
     if (item) {
+      // dateOrNull: only accept valid YYYY-MM-DD strings
+      const dn = v => (v && String(v).match(/^\d{4}-\d{2}-\d{2}$/)) ? v : ''
       setForm({
         name:       item.name       || '',
         qty:        item.qty        ?? '',
         unit:       item.unit       || '',
         location:   item.location   || '',
         food_group: item.food_group || '',
-        stored_at:  item.stored_at  || today(),
-        expires_at: item.expires_at || '',
+        stored_at:  dn(item.stored_at) || today(),
+        expires_at: dn(item.expires_at),
         note:       item.note       || '',
         ean:        item.ean        || '',
       })
