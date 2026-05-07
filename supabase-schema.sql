@@ -57,14 +57,18 @@ create table if not exists public.locations (
   created_at timestamptz default now()
 );
 
-create table if not exists public.foods (
+create table if not exists public.food_groups (
   id           bigint generated always as identity primary key,
   name         text not null,
-  category     text,
-  default_unit text default 'Stück',
+  icon         text default '📦',
   note         text,
+  sort_order   integer default 0,
+  default_days integer,
   created_at   timestamptz default now()
 );
+
+-- Migration: default_days zu bestehender food_groups-Tabelle hinzufügen
+-- alter table public.food_groups add column if not exists default_days integer;
 
 create table if not exists public.units (
   id         bigint generated always as identity primary key,

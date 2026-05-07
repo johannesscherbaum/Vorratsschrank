@@ -110,6 +110,13 @@ function EditCell({ value, onSave, type = 'text', options, mono = false, placeho
       {options.map(o => <option key={o}>{o}</option>)}
     </select>
   )
+  if (type === 'number') return (
+    <input ref={ref} type="number" min="1" value={val ?? ''} className="edit-cell-input"
+      style={{ width: 72 }} placeholder="–"
+      onChange={e => setVal(e.target.value === '' ? null : Number(e.target.value))}
+      onKeyDown={e => { if (e.key==='Enter')commit(); if (e.key==='Escape')cancel() }}
+      onBlur={commit} />
+  )
   return (
     <input ref={ref} value={val} className="edit-cell-input" placeholder={placeholder}
       onChange={e => setVal(e.target.value)}
@@ -231,13 +238,14 @@ function FoodsTab() {
   const rows = useStore(foodGroupStore)
   const [q, setQ] = useState('')
   const [adding, setAdding] = useState(false)
-  const [form, setForm] = useState({ name:'', icon:'📦', note:'' })
+  const [form, setForm] = useState({ name:'', icon:'📦', note:'', default_days:'' })
   const drag = useDrag(rows, foodGroupStore)
   const filtered = rows.filter(r => r.name.toLowerCase().includes(q.toLowerCase()))
   const add = () => {
     if (!form.name.trim()) return
-    foodGroupStore.add({...form, name:form.name.trim()})
-    setForm({ name:'', icon:'📦', note:'' }); setAdding(false)
+    const days = form.default_days !== '' ? Number(form.default_days) : null
+    foodGroupStore.add({ ...form, name:form.name.trim(), default_days: days || null })
+    setForm({ name:'', icon:'📦', note:'', default_days:'' }); setAdding(false)
   }
   return (
     <div>
@@ -250,7 +258,7 @@ function FoodsTab() {
       </div>
       {adding && (
         <AddPanel title="Neue Lebensmittelgruppe" onCancel={() => setAdding(false)} onSave={add}>
-          <div style={{ display:'grid', gridTemplateColumns:'44px 2fr 3fr', gap:10, alignItems:'end' }}>
+          <div style={{ display:'grid', gridTemplateColumns:'44px 2fr 2fr 100px', gap:10, alignItems:'end' }}>
             <div><Lbl>Icon</Lbl>
               <IconPicker value={form.icon} icons={FOOD_ICONS} onChange={ic => setForm(f=>({...f,icon:ic}))} />
             </div>
@@ -263,6 +271,10 @@ function FoodsTab() {
               <input className="form-input" value={form.note} placeholder="Optional"
                 onChange={e => setForm(f=>({...f,note:e.target.value}))} />
             </div>
+            <div><Lbl>MHD-Standard (Tage)</Lbl>
+              <input className="form-input" type="number" min="1" value={form.default_days} placeholder="–"
+                onChange={e => setForm(f=>({...f,default_days:e.target.value}))} />
+            </div>
           </div>
         </AddPanel>
       )}
@@ -274,6 +286,7 @@ function FoodsTab() {
             <th style={{width:52}}>Icon</th>
             <th>Gruppenname</th>
             <th>Notiz</th>
+            <th style={{width:130}} title="Standard-Haltbarkeit in Tagen – wird beim Einlagern als MHD-Vorschlag verwendet">MHD-Standard (Tage)</th>
             <th style={{width:110}}></th>
           </tr></thead>
           <tbody>
@@ -285,6 +298,10 @@ function FoodsTab() {
                 <td><IconPicker value={r.icon||'📦'} icons={FOOD_ICONS} onChange={ic=>foodGroupStore.update(r.id,{icon:ic})} /></td>
                 <td><EditCell value={r.name} onSave={v=>v.trim()&&foodGroupStore.update(r.id,{name:v.trim()})} /></td>
                 <td className="td-muted"><EditCell value={r.note||''} placeholder="Notiz…" onSave={v=>foodGroupStore.update(r.id,{note:v})} /></td>
+                <td style={{textAlign:'right'}}>
+                  <EditCell type="number" value={r.default_days ?? null} placeholder="–"
+                    onSave={v=>foodGroupStore.update(r.id,{default_days:v||null})} />
+                </td>
                 <td><div className="row-actions">
                   <button className="row-btn" title="Duplizieren" onClick={()=>foodGroupStore.duplicate(r.id)}>⧉</button>
                   <button className="row-btn danger" onClick={()=>window.confirm(`„${r.name}" löschen?`)&&foodGroupStore.remove(r.id)}>✕</button>
@@ -294,7 +311,7 @@ function FoodsTab() {
           </tbody>
         </table>
       </div>
-      <p className="hint">{rows.length} Gruppen · ⠿ ziehen zum Sortieren · ⧉ = Duplizieren</p>
+      <p className="hint">{rows.length} Gruppen · ⠿ ziehen zum Sortieren · ⧉ = Duplizieren · MHD-Standard = Tage Haltbarkeit ab Einlagerungsdatum</p>
     </div>
   )
 }
