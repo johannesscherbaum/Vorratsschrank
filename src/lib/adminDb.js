@@ -53,28 +53,28 @@ const LOCAL_DEFAULTS = {
     {id:9,name:'Sonstiges',     icon:'•', note:'',sort_order:9},
   ],
   food_groups: [
-    {id:1, name:'Fleisch',               icon:'🥩',note:'',sort_order:1},
-    {id:2, name:'Geflügel',              icon:'🍗',note:'',sort_order:2},
-    {id:3, name:'Fisch & Meeresfrüchte', icon:'🐟',note:'',sort_order:3},
-    {id:4, name:'Wurst & Aufschnitt',    icon:'🌭',note:'',sort_order:4},
-    {id:5, name:'Milch & Sahne',         icon:'🥛',note:'',sort_order:5},
-    {id:6, name:'Käse',                  icon:'🧀',note:'',sort_order:6},
-    {id:7, name:'Butter & Fette',        icon:'🧈',note:'',sort_order:7},
-    {id:8, name:'Joghurt & Quark',       icon:'🫙',note:'',sort_order:8},
-    {id:9, name:'Eier',                  icon:'🥚',note:'',sort_order:9},
-    {id:10,name:'Gemüse',                icon:'🥦',note:'',sort_order:10},
-    {id:11,name:'Kartoffeln & Wurzeln',  icon:'🥔',note:'',sort_order:11},
-    {id:12,name:'Obst',                  icon:'🍎',note:'',sort_order:12},
-    {id:13,name:'Brot & Backwaren',      icon:'🍞',note:'',sort_order:13},
-    {id:14,name:'Nudeln & Reis',         icon:'🍝',note:'',sort_order:14},
-    {id:15,name:'Mehl & Backzutaten',    icon:'🌾',note:'',sort_order:15},
-    {id:16,name:'Hülsenfrüchte',         icon:'🫘',note:'',sort_order:16},
-    {id:17,name:'Konserven',             icon:'🥫',note:'',sort_order:17},
-    {id:18,name:'Tiefkühlware',          icon:'🧊',note:'',sort_order:18},
-    {id:19,name:'Getränke',              icon:'💧',note:'',sort_order:19},
-    {id:20,name:'Saucen & Gewürze',      icon:'🫒',note:'',sort_order:20},
-    {id:21,name:'Süßes & Snacks',        icon:'🍫',note:'',sort_order:21},
-    {id:22,name:'Sonstiges',             icon:'📦',note:'',sort_order:22},
+    {id:1, name:'Fleisch',               icon:'🥩',note:'',sort_order:1,  default_days:365},
+    {id:2, name:'Geflügel',              icon:'🍗',note:'',sort_order:2,  default_days:300},
+    {id:3, name:'Fisch & Meeresfrüchte', icon:'🐟',note:'',sort_order:3,  default_days:120},
+    {id:4, name:'Wurst & Aufschnitt',    icon:'🌭',note:'',sort_order:4,  default_days:null},
+    {id:5, name:'Milch & Sahne',         icon:'🥛',note:'',sort_order:5,  default_days:null},
+    {id:6, name:'Käse',                  icon:'🧀',note:'',sort_order:6,  default_days:null},
+    {id:7, name:'Butter & Fette',        icon:'🧈',note:'',sort_order:7,  default_days:null},
+    {id:8, name:'Joghurt & Quark',       icon:'🫙',note:'',sort_order:8,  default_days:null},
+    {id:9, name:'Eier',                  icon:'🥚',note:'',sort_order:9,  default_days:300},
+    {id:10,name:'Gemüse',                icon:'🥦',note:'',sort_order:10, default_days:365},
+    {id:11,name:'Kartoffeln & Wurzeln',  icon:'🥔',note:'',sort_order:11, default_days:365},
+    {id:12,name:'Obst',                  icon:'🍎',note:'',sort_order:12, default_days:365},
+    {id:13,name:'Brot & Backwaren',      icon:'🍞',note:'',sort_order:13, default_days:90},
+    {id:14,name:'Nudeln & Reis',         icon:'🍝',note:'',sort_order:14, default_days:null},
+    {id:15,name:'Mehl & Backzutaten',    icon:'🌾',note:'',sort_order:15, default_days:150},
+    {id:16,name:'Hülsenfrüchte',         icon:'🫘',note:'',sort_order:16, default_days:null},
+    {id:17,name:'Konserven',             icon:'🥫',note:'',sort_order:17, default_days:180},
+    {id:18,name:'Tiefkühlware',          icon:'🧊',note:'',sort_order:18, default_days:365},
+    {id:19,name:'Getränke',              icon:'💧',note:'',sort_order:19, default_days:null},
+    {id:20,name:'Saucen & Gewürze',      icon:'🫒',note:'',sort_order:20, default_days:null},
+    {id:21,name:'Süßes & Snacks',        icon:'🍫',note:'',sort_order:21, default_days:150},
+    {id:22,name:'Sonstiges',             icon:'📦',note:'',sort_order:22, default_days:null},
   ],
   units: [
     {id:1, name:'Stück',      abbr:'St.', note:'Einzelne Einheiten',sort_order:1},
@@ -87,6 +87,9 @@ const LOCAL_DEFAULTS = {
     {id:8, name:'Beutel',     abbr:'Btl.',note:'',                  sort_order:8},
     {id:9, name:'Packung/en', abbr:'Pkg.',note:'',                  sort_order:9},
     {id:10,name:'Portion/en', abbr:'Por.',note:'',                  sort_order:10},
+  ],
+  users: [
+    {id:1, name:'Admin', role:'admin', note:'', sort_order:1},
   ],
 }
 
@@ -227,6 +230,7 @@ const make = (table) => isLocalMode ? makeLocalStore(table) : makeSupabaseStore(
 export const locationStore  = make('locations')
 export const foodGroupStore = make('food_groups')
 export const unitStore      = make('units')
+export const userStore      = make('users')
 
 // Legacy alias
 export const foodStore = foodGroupStore
